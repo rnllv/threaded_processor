@@ -16,8 +16,8 @@ public class NeoCall implements Runnable {
         if (pload.charAt(0) % 2 ==0){
             //System.out.println("I'm goint to sleep");
             try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
+                Thread.sleep(50);
+            } catch (Exception e) {
                 throw new RuntimeException(e);
             }
             //System.out.println("I'm awake");

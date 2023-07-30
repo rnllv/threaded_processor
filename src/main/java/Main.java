@@ -2,46 +2,34 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         BlockingQueue<Runnable> batchQueue = new ArrayBlockingQueue<>(5);
-        int processingCapacity = 2;
-        BlockingQueue<Runnable> processingQueue = new ArrayBlockingQueue<>(processingCapacity);
-        ThreadPoolExecutor concurrentBatchProcessor = new ThreadPoolExecutor(processingCapacity, processingCapacity, 500000, TimeUnit.MILLISECONDS, processingQueue);
 
         Neot dd = new Neot();
 
-        boolean processingPending = true;
-        boolean pendingRecordsToBeReadFromFile = true;
+        AtomicBoolean pendingRecordsToBeReadFromFile = new AtomicBoolean(true);
         List<String> nn;
         NeoCall neo;
-
+        Thread loaderThread = new Thread(new NeoThreader(5, batchQueue, pendingRecordsToBeReadFromFile));
+        loaderThread.start();
         do {
-            while (batchQueue.remainingCapacity() >= 1 && pendingRecordsToBeReadFromFile) {
+            while (batchQueue.remainingCapacity() >= 1 && pendingRecordsToBeReadFromFile.get()) {
                 nn = new ArrayList<>();
-                pendingRecordsToBeReadFromFile = dd.getNext(nn);
-                if (pendingRecordsToBeReadFromFile) {
+                pendingRecordsToBeReadFromFile.set(dd.getNext(nn));
+                if (pendingRecordsToBeReadFromFile.get()) {
                     System.out.println("Found data to be read");
                     neo = new NeoCall(nn);
                     batchQueue.add(neo);
                 }
             }
+        } while (pendingRecordsToBeReadFromFile.get());
 
-            while (processingQueue.remainingCapacity() >= 1 && !batchQueue.isEmpty()) {
-                System.out.println("Submit ");
-                concurrentBatchProcessor.submit(batchQueue.poll());
-            }
-            if (!pendingRecordsToBeReadFromFile && batchQueue.isEmpty() && processingQueue.isEmpty()){
-                processingPending = false;
-            }
-        } while (processingPending);
-
+        loaderThread.join();
         System.out.println("OUt");
-        concurrentBatchProcessor.shutdown();
 
 
     }
